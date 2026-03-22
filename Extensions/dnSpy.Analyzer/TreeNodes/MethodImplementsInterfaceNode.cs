@@ -66,7 +66,8 @@ namespace dnSpy.Analyzer.TreeNodes {
 			foreach (var method in type.Methods) {
 				if (method.Name != analyzedMethod.Name)
 					continue;
-				if ((!method.IsStatic || method.IsAbstract) &&
+				bool canBeImplicitlyImplemented = !method.IsStatic || method.IsAbstract;
+				if (canBeImplicitlyImplemented &&
 					TypesHierarchyHelpers.MatchInterfaceMethod(method, analyzedMethod, implementedInterfaceRef)) {
 					yield return new MethodNode(method) { Context = Context };
 					yield break;
