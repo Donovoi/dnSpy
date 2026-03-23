@@ -187,6 +187,15 @@ namespace dnSpy.Analyzer.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Implements.
+        /// </summary>
+        public static string ImplementsTreeNode {
+            get {
+                return ResourceManager.GetString("ImplementsTreeNode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Instantiated By.
         /// </summary>
         public static string InstantiatedByTreeNode {
