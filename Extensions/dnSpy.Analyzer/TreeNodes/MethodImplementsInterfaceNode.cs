@@ -35,50 +35,70 @@ namespace dnSpy.Analyzer.TreeNodes {
 			output.Write(BoxedTextColor.Text, dnSpy_Analyzer_Resources.ImplementsTreeNode);
 
 		protected override IEnumerable<AnalyzerTreeNodeData> FetchChildren(CancellationToken ct) {
-			const bool includeAllModules = true;
-			var options = analyzedMethod.HasOverrides ? ScopedWhereUsedAnalyzerOptions.ForcePublic : ScopedWhereUsedAnalyzerOptions.None;
-			if (includeAllModules)
-				options |= ScopedWhereUsedAnalyzerOptions.IncludeAllModules;
-			var analyzer = new ScopedWhereUsedAnalyzer<AnalyzerTreeNodeData>(Context.DocumentService, analyzedMethod, FindReferencesInType, options);
-			return analyzer.PerformAnalysis(ct);
-		}
+			var foundMethods = new List<MethodDef>();
 
-		IEnumerable<AnalyzerTreeNodeData> FindReferencesInType(TypeDef type) {
-			if (!type.IsInterface)
-				yield break;
+			foreach (var interfaceMethod in GetExplicitInterfaceMethods(ct)) {
+				if (foundMethods.Any(a => CheckEquals(a, interfaceMethod)))
+					continue;
+				foundMethods.Add(interfaceMethod);
+				yield return new MethodNode(interfaceMethod) { Context = Context };
+			}
 
 			if (analyzedMethod is { IsVirtual: false, IsStatic: false } || analyzedMethod.IsAbstract)
 				yield break;
 
-			if (analyzedMethod.HasOverrides) {
-				foreach (var interfaceMethod in type.Methods) {
-					if (!analyzedMethod.Overrides.Any(x => CheckOverride(x, interfaceMethod)))
+			foreach (var info in GetCandidateInterfaces(ct)) {
+				ct.ThrowIfCancellationRequested();
+				foreach (var interfaceMethod in info.type.Methods) {
+					if (foundMethods.Any(a => CheckEquals(a, interfaceMethod)))
 						continue;
+					if (interfaceMethod.Name != analyzedMethod.Name)
+						continue;
+					bool canBeImplicitlyImplemented = !interfaceMethod.IsStatic || interfaceMethod.IsAbstract;
+					if (!canBeImplicitlyImplemented)
+						continue;
+					if (!TypesHierarchyHelpers.MatchInterfaceMethod(interfaceMethod, analyzedMethod, info.reference))
+						continue;
+					foundMethods.Add(interfaceMethod);
 					yield return new MethodNode(interfaceMethod) { Context = Context };
-					yield break;
-				}
-			}
-
-			var implementedInterfaceRef = InterfaceMethodImplementedByNode.GetInterface(analyzedMethod.DeclaringType, type);
-			if (implementedInterfaceRef is null)
-				yield break;
-
-			foreach (var method in type.Methods) {
-				if (method.Name != analyzedMethod.Name)
-					continue;
-				bool canBeImplicitlyImplemented = !method.IsStatic || method.IsAbstract;
-				if (canBeImplicitlyImplemented &&
-					TypesHierarchyHelpers.MatchInterfaceMethod(method, analyzedMethod, implementedInterfaceRef)) {
-					yield return new MethodNode(method) { Context = Context };
-					yield break;
 				}
 			}
 		}
 
-		bool CheckOverride(MethodOverride methodOverride, MethodDef interfaceMethod) {
-			if (methodOverride.MethodDeclaration.ResolveMethodDef() is not { } method)
-				return false;
-			return CheckEquals(method, interfaceMethod);
+		IEnumerable<MethodDef> GetExplicitInterfaceMethods(CancellationToken ct) {
+			if (!analyzedMethod.HasOverrides)
+				yield break;
+
+			foreach (var methodOverride in analyzedMethod.Overrides) {
+				ct.ThrowIfCancellationRequested();
+				if (methodOverride.MethodDeclaration.ResolveMethodDef() is not MethodDef interfaceMethod)
+					continue;
+				if (!interfaceMethod.DeclaringType.IsInterface)
+					continue;
+				yield return interfaceMethod;
+			}
+		}
+
+		IEnumerable<(ITypeDefOrRef reference, TypeDef type)> GetCandidateInterfaces(CancellationToken ct) {
+			var checkedInterfaces = new List<ITypeDefOrRef>();
+			foreach (var type in TypesHierarchyHelpers.GetTypeAndBaseTypes(analyzedMethod.DeclaringType)) {
+				ct.ThrowIfCancellationRequested();
+				var typeDef = type.Resolve();
+				if (typeDef is null)
+					continue;
+				var genericArgs = type is GenericInstSig ? ((GenericInstSig)type).GenericArguments : null;
+				foreach (var interfaceImpl in typeDef.Interfaces) {
+					ct.ThrowIfCancellationRequested();
+					var iface = GenericArgumentResolver.Resolve(interfaceImpl.Interface.ToTypeSig(), genericArgs, null)?.ToTypeDefOrRef();
+					if (iface is null || checkedInterfaces.Any(a => new SigComparer().Equals(a, iface)))
+						continue;
+					var interfaceType = iface.ResolveTypeDef();
+					if (interfaceType is null)
+						continue;
+					checkedInterfaces.Add(iface);
+					yield return (iface, interfaceType);
+				}
+			}
 		}
 
 		public static bool CanShow(MethodDef method) =>

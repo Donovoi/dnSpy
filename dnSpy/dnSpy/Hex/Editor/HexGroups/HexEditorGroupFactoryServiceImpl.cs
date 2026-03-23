@@ -60,7 +60,7 @@ namespace dnSpy.Hex.Editor.HexGroups {
 			options.EndPosition = hexView.Buffer.Span.End;
 			options.BasePosition = HexPosition.Zero;
 			options.UseRelativePositions = false;
-			options.OffsetBitSize = 32;
+			options.OffsetBitSize = hexView.Buffer.Span.End > new HexPosition(0x100000000UL) ? 64 : 32;
 			options.HexValuesDisplayFormat = HexValuesDisplayFormat.HexByte;
 			options.BytesPerLine = 16;
 			return options;
