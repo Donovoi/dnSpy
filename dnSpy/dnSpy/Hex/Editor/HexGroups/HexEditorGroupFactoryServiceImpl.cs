@@ -27,6 +27,7 @@ using dnSpy.Contracts.Hex.Editor.HexGroups;
 namespace dnSpy.Hex.Editor.HexGroups {
 	[Export(typeof(HexEditorGroupFactoryService))]
 	sealed class HexEditorGroupFactoryServiceImpl : HexEditorGroupFactoryService {
+		static readonly HexPosition max32BitOffsetEnd = new HexPosition(0x100000000UL);
 		readonly HexEditorFactoryService hexEditorFactoryService;
 
 		[ImportingConstructor]
@@ -60,7 +61,7 @@ namespace dnSpy.Hex.Editor.HexGroups {
 			options.EndPosition = hexView.Buffer.Span.End;
 			options.BasePosition = HexPosition.Zero;
 			options.UseRelativePositions = false;
-			options.OffsetBitSize = hexView.Buffer.Span.End > new HexPosition(0x100000000UL) ? 64 : 32;
+			options.OffsetBitSize = hexView.Buffer.Span.End > max32BitOffsetEnd ? 64 : 32;
 			options.HexValuesDisplayFormat = HexValuesDisplayFormat.HexByte;
 			options.BytesPerLine = 16;
 			return options;

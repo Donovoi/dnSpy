@@ -86,7 +86,7 @@ namespace dnSpy.Analyzer.TreeNodes {
 				var typeDef = type.Resolve();
 				if (typeDef is null)
 					continue;
-				var genericArgs = type is GenericInstSig ? ((GenericInstSig)type).GenericArguments : null;
+				var genericArgs = type is GenericInstSig genericType ? genericType.GenericArguments : null;
 				foreach (var interfaceImpl in typeDef.Interfaces) {
 					ct.ThrowIfCancellationRequested();
 					var iface = GenericArgumentResolver.Resolve(interfaceImpl.Interface.ToTypeSig(), genericArgs, null)?.ToTypeDefOrRef();
